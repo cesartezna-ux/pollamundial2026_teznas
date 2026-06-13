@@ -703,28 +703,42 @@ window.addEventListener("focus",refreshShared);
 
 /* ---------- Boot ---------- */
 (async function boot(){
-  S.me=await getJSON("me",false);
-  S.organizer=(await getJSON("organizer",false))||false;
-  
-  // Carga inicial desde la nube
-  await fetchAllShared();
-  
-  S.results=(await getJSON("results",true))||{};
-  S.custom=(await getJSON("custom",true))||[];
-  S.roster=(await getJSON("roster",true))||[];
-  if(S.me){
-    S.predsMe=(await getJSON("preds_"+S.me.id,true))||{};
-    await joinRoster();
+  try {
+    // 1. Cargar la identidad del usuario actual
+    S.me = await getJSON("me", false);
+    S.organizer = (await getJSON("organizer", false)) || false;
+    
+    // 2. Descargar de forma segura los datos oficiales en la nube (Roster, Resultados y Predicciones)
+    await fetchAllShared();
+    
+    // 3. Cargar las predicciones individuales del usuario si está registrado
+    if(S.me){
+      S.predsMe = (await getJSON("preds_" + S.me.id, true)) || {};
+      await joinRoster();
+    }
+    
+    // 4. Sincronizar y pintar el cascarón visual de la aplicación
+    for(const pl of S.roster){ 
+      S.allPreds[pl.id] = (await getJSON("preds_" + pl.id, true)) || {}; 
+    }
+    if(S.me) S.allPreds[S.me.id] = Object.assign({}, S.allPreds[S.me.id] || {}, S.predsMe);
+    
+    renderShell();
+    if(!S.me){ 
+      showOnboarding(false); 
+      renderView(); 
+    } else {
+      renderView(); 
+    }
+  } catch(e) {
+    console.error("Error crítico en el arranque de la Polla:", e);
+    renderShell();
+    renderView();
   }
-  for(const pl of S.roster){ S.allPreds[pl.id]=(await getJSON("preds_"+pl.id,true))||{}; }
-  if(S.me) S.allPreds[S.me.id]=Object.assign({},S.allPreds[S.me.id]||{},S.predsMe);
-  renderShell();
-  if(!S.me){ showOnboarding(false); renderView(); }
-  else renderView();
 })();
 
 /* ==========================================
-   MÓDULO DE ADAPTACIÓN API FIFA - VERSIÓN PRO
+   MÓDULO DE ADAPTACIÓN API FIFA - REPARADO
    ========================================== */
 function forzarSincronizacionAPI() {
   const btn = document.getElementById("api_sync_btn");
@@ -734,18 +748,15 @@ function forzarSincronizacionAPI() {
     btn.style.backgroundColor = "#83a294";
   }
   
-  // Refresca la base de datos descargando los datos de Google Sheets
+  // Llama a la nube para descargar de inmediato los marcadores actualizados por el Cron
   fetchAllShared()
     .then(() => {
-      if (typeof calcularClasificadosEnVivoPRO === "function") {
-        calcularClasificadosEnVivoPRO();
-      }
       toast("¡Base de datos sincronizada con la FIFA con éxito! ⚽");
-      setTimeout(() => location.reload(), 1000);
+      setTimeout(() => location.reload(), 800);
     })
     .catch(() => {
-      toast("Sincronización en curso. Recargando...", false);
-      setTimeout(() => location.reload(), 1000);
+      toast("Sincronizando la interfaz...");
+      setTimeout(() => location.reload(), 800);
     });
 }
   
