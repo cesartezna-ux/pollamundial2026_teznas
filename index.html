@@ -536,7 +536,7 @@ function renderResultados(c){
   S.resWork=Object.assign({},S.results);
   const ms=allMatches().slice().sort((a,b)=>b.kick-a.kick);
   let html=`<div class="rules" style="margin-top:8px;margin-bottom:14px">Carga aquí el <b>resultado oficial</b> de cada partido.</div>`;
-  html+=`<div class="addbox">
+  /* html+=`<div class="addbox">
     <div class="ttl">➕ Agregar partido (octavos, cuartos, etc.)</div>
     <div class="addgrid">
       <input class="mini" id="cm_home" placeholder="Equipo local">
@@ -546,7 +546,7 @@ function renderResultados(c){
       <div class="full" style="font-size:11px;color:var(--muted);margin-top:-2px">Hora de Colombia. Se cerrará automáticamente a esa hora.</div>
       <button class="smallbtn full" id="cm_add">Agregar al fixture</button>
     </div>
-  </div>`;
+  </div>`;*/
   for(const m of ms){
     const r=S.resWork[m.id]||{};
     const locked=S.now>=m.kick;
