@@ -704,36 +704,33 @@ window.addEventListener("focus",refreshShared);
 /* ---------- Boot ---------- */
 (async function boot(){
   try {
-    // 1. Cargar datos de identidad del usuario actual
+    // 1. Inicializar el contenedor global de predicciones
+    S.allPreds = S.allPreds || {};
+    
+    // 2. Cargar datos de identidad del usuario actual
     S.me = await getJSON("me", false);
     S.organizer = (await getJSON("organizer", false)) || false;
     
-    // 2. Descargar los datos reales desde la nube de Google Sheets
+    // 3. Descargar los datos reales desde la nube de Google Sheets
     await fetchAllShared();
     
-    // 3. AMARRE DE SEGURIDAD: Si fetchAllShared no inyectó las variables dentro de S, las asignamos manualmente
+    // 4. AMARRE DE SEGURIDAD: Asegurar que las variables globales pasen a la estructura S
     if (typeof results !== 'undefined') S.results = results;
     if (typeof roster !== 'undefined') S.roster = roster;
     if (typeof custom !== 'undefined') S.custom = custom;
     
-    // Asegurar valores por defecto si Google Sheets viene vacío
     S.results = S.results || {};
     S.custom = S.custom || [];
     S.roster = S.roster || [];
     
-    // 4. Cargar predicciones del usuario
+    // 5. Cargar predicciones del usuario activo si existe
     if(S.me){
       S.predsMe = (await getJSON("preds_" + S.me.id, true)) || {};
       await joinRoster();
+      S.allPreds[S.me.id] = Object.assign({}, S.allPreds[S.me.id] || {}, S.predsMe);
     }
     
-    // 5. Mapear la tabla de predicciones de todos los familiares
-    for(const pl of S.roster){ 
-      S.allPreds[pl.id] = (await getJSON("preds_" + pl.id, true)) || {}; 
-    }
-    if(S.me) S.allPreds[S.me.id] = Object.assign({}, S.allPreds[S.me.id] || {}, S.predsMe);
-    
-    // 6. Dibujar la aplicación en pantalla
+    // 6. Dibujar la aplicación de forma inmediata sin ciclos locales que la bloqueen
     renderShell();
     renderView();
     
