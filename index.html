@@ -261,8 +261,35 @@ function allMatches(){
   const cm=S.custom.map(c=>({id:c.id,g:c.g||"PLAY",home:c.home,away:c.away,kick:c.kick,custom:true}));
   return FIXTURE.concat(cm).sort((a,b)=>a.kick-b.kick);
 }
-function outcome(h,a){return h>a?"1":(h<a?"2":"X");}
-function ptsFor(p,r){ if(!p||!r)return null; let s=0; if(outcome(p.h,p.a)===outcome(r.h,r.a))s+=1; if(p.h===r.h&&p.a===r.a)s+=2; return s; }
+function outcome(h, a) {
+  const numH = parseInt(h, 10);
+  const numA = parseInt(a, 10);
+  if (numH > numA) return "1";
+  if (numH < numA) return "2";
+  return "X";
+}
+function ptsFor(p, r) {
+  if (!p || !r || p.h == null || p.a == null || r.h == null || r.a == null) return null;
+  
+  let s = 0;
+  // Convertimos a enteros para asegurar una comparación limpia
+  const pH = parseInt(p.h, 10);
+  const pA = parseInt(p.a, 10);
+  const rH = parseInt(r.h, 10);
+  const rA = parseInt(r.a, 10);
+
+  // 1. Validar si acertó al ganador o empate (+1 punto)
+  if (outcome(pH, pA) === outcome(rH, rA)) {
+    s += 1;
+  }
+  
+  // 2. Validar si acertó el marcador exacto (+2 puntos extra)
+  if (pH === rH && pA === rA) {
+    s += 2;
+  }
+  
+  return s;
+}
 const COLO = m => m.home==="Colombia"||m.away==="Colombia";
 
 /* time format in Colombia */
@@ -656,7 +683,7 @@ async function refreshShared(){
   }catch(e){ console.error(e); }
 }
 // Sincronizar cada 20 segundos automáticamente o cuando el usuario cambie de pestaña
-setInterval(refreshShared,20000);
+setInterval(refreshShared,25000);
 window.addEventListener("focus",refreshShared);
 
 /* ---------- Boot ---------- */
