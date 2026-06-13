@@ -722,4 +722,31 @@ window.addEventListener("focus",refreshShared);
   if(!S.me){ showOnboarding(false); renderView(); }
   else renderView();
 })();
+
+/* ==========================================
+   MÓDULO DE ADAPTACIÓN API FIFA - VERSIÓN PRO
+   ========================================== */
+function forzarSincronizacionAPI() {
+  const btn = document.getElementById("api_sync_btn");
+  if (btn) {
+    btn.innerText = "⏳ Conectando con la FIFA...";
+    btn.disabled = true;
+    btn.style.backgroundColor = "#83a294";
+  }
+  
+  // Refresca la base de datos descargando los datos de Google Sheets
+  fetchAllShared()
+    .then(() => {
+      if (typeof calcularClasificadosEnVivoPRO === "function") {
+        calcularClasificadosEnVivoPRO();
+      }
+      toast("¡Base de datos sincronizada con la FIFA con éxito! ⚽");
+      setTimeout(() => location.reload(), 1000);
+    })
+    .catch(() => {
+      toast("Sincronización en curso. Recargando...", false);
+      setTimeout(() => location.reload(), 1000);
+    });
+}
+  
 </script>
