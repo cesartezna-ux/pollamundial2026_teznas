@@ -258,68 +258,25 @@ const S = {
 const AVATARS=["⚽","🏆","🦁","🐯","🔥","⭐","🚀","🐉","🌶️","🎯","👑","🐺"];
 
 function allMatches(){
-  // 1. Clonamos el fixture original (Fase de Grupos)
   let partidosTotales = FIXTURE.slice();
-  const res = S.results || {};
 
-  // HELPER: Calcula la tabla de posiciones en caliente para un grupo
-  const obtenerTopGrupo = (letra) => {
-    const partidos = FIXTURE.filter(m => m.g === letra && res[m.id]);
-    if (partidos.length < 6) return null; // No ha terminado el grupo
-    
-    const tabla = {};
-    partidos.forEach(m => {
-      if (!tabla[m.home]) tabla[m.home] = { name: m.home, pts: 0, gd: 0, gf: 0 };
-      if (!tabla[m.away]) tabla[m.away] = { name: m.away, pts: 0, gd: 0, gf: 0 };
-      
-      const r = res[m.id];
-      const gh = parseInt(r.h || 0, 10);
-      const ga = parseInt(r.a || 0, 10);
-      
-      tabla[m.home].gf += gh;
-      tabla[m.away].gf += ga;
-      tabla[m.home].gd += (gh - ga);
-      tabla[m.away].gd += (ga - gh);
-      
-      if (gh > ga) tabla[m.home].pts += 3;
-      else if (ga > gh) tabla[m.away].pts += 3;
-      else { tabla[m.home].pts += 1; tabla[m.away].pts += 1; }
+  // Crear las llaves base fijas si no existen en el FIXTURE original
+  if (!partidosTotales.some(m => m.id === "m_octavos_1")) {
+    partidosTotales.push({
+      id: "m_octavos_1",
+      g: "Octavos",
+      home: "1° Grupo A",
+      away: "2° Grupo B",
+      kick: 1782632400000 // Timestamp genérico para que no falle el orden
+    }, {
+      id: "m_octavos_2",
+      g: "Octavos",
+      home: "1° Grupo B",
+      away: "2° Grupo A",
+      kick: 1782718800000
     });
-    return Object.values(tabla).sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf);
-  };
+  }
 
-  // 2. Calculamos los clasificados en vivo
-  const topA = obtenerTopGrupo("A");
-  const topB = obtenerTopGrupo("B");
-
-  // 3. CREACIÓN AUTOMÁTICA DE OCTAVOS DE FINAL
-  // Definimos la fecha y hora estimada para los partidos de Octavos (Formato Timestamp)
-  // Nota: Puedes cambiar estos números por la fecha real del calendario de Octavos si lo deseas
-  const fechaOctavos1 = new Date("2026-06-28T15:00:00-05:00").getTime(); 
-  const fechaOctavos2 = new Date("2026-06-29T15:00:00-05:00").getTime();
-
-  // Llave 1: 1° Grupo A vs 2° Grupo B
-  const octavos1 = {
-    id: "m_octavos_1",
-    g: "Octavos",
-    home: topA ? topA[0].name : "1° Grupo A",
-    away: topB ? topB[1].name : "2° Grupo B",
-    kick: fechaOctavos1
-  };
-
-  // Llave 2: 1° Grupo B vs 2° Grupo A
-  const octavos2 = {
-    id: "m_octavos_2",
-    g: "Octavos",
-    home: topB ? topB[0].name : "1° Grupo B",
-    away: topA ? topA[1].name : "2° Grupo A",
-    kick: fechaOctavos2
-  };
-
-  // 4. Inyectamos los nuevos partidos al ecosistema de la app
-  partidosTotales.push(octavos1, octavos2);
-
-  // REPARACIÓN PRO: Devolvemos la lista limpia sin forzar el sort cronológico que causó el choque
   return partidosTotales;
 }
   
