@@ -554,18 +554,14 @@ function renderResultados(c){
   S.resDirty=S.resDirty||new Set();
   S.resWork=Object.assign({},S.results);
   const ms=allMatches().slice().sort((a,b)=>b.kick-a.kick);
+  
   let html=`<div class="rules" style="margin-top:8px;margin-bottom:14px">Carga aquí el <b>resultado oficial</b> de cada partido.</div>`;
-  /* html+=`<div class="addbox">
-    <div class="ttl">➕ Agregar partido (octavos, cuartos, etc.)</div>
-    <div class="addgrid">
-      <input class="mini" id="cm_home" placeholder="Equipo local">
-      <input class="mini" id="cm_away" placeholder="Equipo visitante">
-      <input class="mini" id="cm_date" type="date" value="2026-06-28">
-      <input class="mini" id="cm_time" type="time" value="14:00">
-      <div class="full" style="font-size:11px;color:var(--muted);margin-top:-2px">Hora de Colombia. Se cerrará automáticamente a esa hora.</div>
-      <button class="smallbtn full" id="cm_add">Agregar al fixture</button>
-    </div>
-  </div>`;*/
+  
+  // BOTÓN PRO: Sincronización en caliente con la API de Google Sheets / FIFA
+  html+=`<div class="addbox" style="margin-top:10px; margin-bottom:15px; border-color: var(--mint);">
+    <button class="smallbtn full" id="api_sync_btn" onclick="forzarSincronizacionAPI()" style="background-color: #36e0bf; color: #06241d; font-weight:700;">🔄 Sincronizar Resultados FIFA en Vivo</button>
+  </div>`;
+  
   for(const m of ms){
     const r=S.resWork[m.id]||{};
     const locked=S.now>=m.kick;
