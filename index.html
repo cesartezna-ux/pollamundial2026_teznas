@@ -319,8 +319,8 @@ function allMatches(){
   // 4. Inyectamos los nuevos partidos al ecosistema de la app
   partidosTotales.push(octavos1, octavos2);
 
-  // Devolvemos todo el torneo organizado cronológicamente
-  return partidosTotales.sort((a,b)=>a.kick-b.kick);
+  // REPARACIÓN PRO: Devolvemos la lista limpia sin forzar el sort cronológico que causó el choque
+  return partidosTotales;
 }
   
 function outcome(h, a) {
