@@ -41,10 +41,6 @@
     border-radius:10px; padding:7px 10px; font-size:13px; cursor:pointer}
   .keybtn.on{color:var(--pitch); background:var(--gold); border-color:var(--gold); font-weight:700}
 
-  /* banner */
-  .banner{background:rgba(255,77,109,.12); border:1px solid rgba(255,77,109,.35); color:#ffd2dc;
-    border-radius:12px; padding:10px 12px; font-size:12.5px; margin:10px 0}
-
   /* Tabs */
   .tabs{display:flex; gap:6px; position:sticky; top:0; z-index:20; padding:10px 0;
     background:linear-gradient(var(--pitch) 70%, transparent)}
@@ -172,6 +168,9 @@
 <div class="toast" id="toast"></div>
 
 <script>
+/* ---------- URL DEL SERVIDOR GOOGLE SHEETS ---------- */
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxnHSqt24WUpflNR4krcTcS8B4YLq7WpahPrKrpLjf33l1m3nFvkxwu7xS_XQJnrY79qw/exec";
+
 /* ---------- Fixture data (group stage). Times stored in ET (-04:00), shown in Colombia time. ---------- */
 const RAW = [
 ["m1","A",11,"15:00","México","Sudáfrica"],["m2","A",11,"22:00","Corea del Sur","Chequia"],
@@ -199,21 +198,57 @@ const flag = n => FLAG[n] || "⚽";
 function isoOf(d,t){return `2026-06-${String(d).padStart(2,"0")}T${t}:00-04:00`;}
 const FIXTURE = RAW.map(r=>({id:r[0],g:r[1],home:r[4],away:r[5],kick:new Date(isoOf(r[2],r[3])).getTime(),custom:false}));
 
-/* ---------- Storage (window.storage with graceful fallback) ---------- */
-const HAS = (typeof window!=="undefined") && !!window.storage;
-const MEM = {};
-async function sGet(key,shared){
-  const mk=(shared?"s:":"p:")+key;
-  if(HAS){ try{ const r=await window.storage.get(key,!!shared); return r?r.value:null; }catch(e){ return null; } }
-  return MEM[mk] ?? null;
+/* ---------- MOTOR DE ALMACENAMIENTO HÍBRIDO (LOCAL + GOOGLE SHEETS) ---------- */
+const CACHE = {};
+
+async function cloudCall(data) {
+  if (!SCRIPT_URL || SCRIPT_URL.includes("AQUÍ_PEGA_TU")) return null;
+  try {
+    const response = await fetch(SCRIPT_URL, {
+      method: "POST",
+      mode: "cors",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify(data)
+    });
+    return await response.json();
+  } catch (e) {
+    console.error("Error conectando con Google Sheets:", e);
+    return null;
+  }
 }
-async function sSet(key,val,shared){
-  const mk=(shared?"s:":"p:")+key;
-  if(HAS){ try{ await window.storage.set(key,val,!!shared); return true; }catch(e){ return false; } }
-  MEM[mk]=val; return true;
+
+async function sGet(key, shared) {
+  const mk = (shared ? "s:" : "p:") + key;
+  if (!shared) {
+    return localStorage.getItem(mk);
+  }
+  return CACHE[key] ?? null;
 }
-async function getJSON(k,sh){ const v=await sGet(k,sh); if(v==null) return null; try{return JSON.parse(v);}catch(e){return null;} }
-async function setJSON(k,o,sh){ return sSet(k,JSON.stringify(o),sh); }
+
+async function sSet(key, val, shared) {
+  const mk = (shared ? "s:" : "p:") + key;
+  if (!shared) {
+    localStorage.setItem(mk, val);
+    return true;
+  }
+  CACHE[key] = val;
+  const res = await cloudCall({ action: "set", key: key, value: val });
+  return res && res.status === "success";
+}
+
+async function getJSON(k, sh) { const v = await sGet(k, sh); if (v == null) return null; try { return JSON.parse(v); } catch (e) { return null; } }
+async function setJSON(k, o, sh) { return sSet(k, JSON.stringify(o), sh); }
+
+async function fetchAllShared() {
+  const res = await cloudCall({ action: "getAll" });
+  if (res) {
+    for (const key in res) {
+      CACHE[key] = res[key];
+    }
+    return true;
+  }
+  return false;
+}
 
 /* ---------- App state ---------- */
 const S = {
@@ -265,7 +300,6 @@ function renderShell(){
         <button class="link-btn" id="changeName">cambiar</button>
         <button class="keybtn ${S.organizer?"on":""}" id="orgBtn" title="Modo organizador">🔑 Organizador</button>
       </div>
-      ${!HAS?`<div class="banner">⚠️ Esta vista no tiene almacenamiento compartido activo, así que funciona solo en este dispositivo. Para jugar en familia, abran el <b>enlace compartido del artifact</b> (no una copia descargada).</div>`:""}
     </header>
     <div class="tabs" id="tabs">
       <div class="tab" data-v="partidos">Partidos</div>
@@ -344,7 +378,6 @@ function renderPartidos(c){
     <div style="margin-top:8px">Cada partido se cierra a su hora de inicio. Después de eso ya no puedes cambiar tu pronóstico.</div>
   </div>`;
   c.innerHTML=html;
-  // wire inputs
   for(const m of ms){
     const hi=document.getElementById("h_"+m.id), ai=document.getElementById("a_"+m.id);
     matchEls[m.id]={hi,ai,cd:document.getElementById("cd_"+m.id),foot:document.getElementById("foot_"+m.id),card:document.getElementById("card_"+m.id)};
@@ -401,20 +434,30 @@ function updateSaveBar(){
 }
 
 async function savePreds(){
-  // drop predictions for matches that already locked & weren't stored before
   const byId={}; allMatches().forEach(m=>byId[m.id]=m);
   let dropped=0;
   for(const id of [...S.dirty]){
     const m=byId[id];
     if(m && S.now>=m.kick){ dropped++; S.dirty.delete(id); }
   }
+  
+  toast("Guardando en la nube...", false);
   const ok=await setJSON("preds_"+S.me.id,S.predsMe,true);
+  
+  // Guardar roster actualizado para asegurar el ranking multipersona
+  const currentRoster = (await getJSON("roster", true)) || [];
+  if(!currentRoster.some(r => r.id === S.me.id)) {
+    currentRoster.push(S.me);
+    await setJSON("roster", currentRoster, true);
+    S.roster = currentRoster;
+  }
+
   S.allPreds[S.me.id]=Object.assign({},S.predsMe);
   S.dirty.clear(); updateSaveBar();
   allMatches().forEach(m=>paintFoot(m));
-  if(!ok) toast("No se pudo guardar. Revisa tu conexión.",true);
-  else if(dropped>0) toast(`Guardado. ${dropped} ya estaba(n) cerrado(s).`,true);
-  else toast("¡Pronósticos guardados! ⚽");
+  if(!ok) toast("No se pudo guardar en Google Sheets.",true);
+  else if(dropped>0) toast(`Guardado. ${dropped} ya cerrado(s).`,true);
+  else toast("¡Pronósticos guardados en Google Sheets! ⚽");
 }
 
 /* ---------- Ranking ---------- */
@@ -436,7 +479,7 @@ function buildBoard(){
 function renderRanking(c){
   const {board,finished,total}=buildBoard();
   if(board.length===0){
-    c.innerHTML=`<div class="empty"><span class="big">🏟️</span>Todavía nadie se ha unido.<br>Comparte el enlace con tu familia y que cada quien entre con su nombre.</div>`;
+    c.innerHTML=`<div class="empty"><span class="big">🏟️</span>Todavía nadie se ha unido.<br>Comparte tu enlace de GitHub y guarda tus pronósticos para aparecer aquí.</div>`;
     return;
   }
   let rows="";
@@ -448,15 +491,15 @@ function renderRanking(c){
       <div class="rank">${rank}</div>
       <div class="who">
         <div class="nm"><span class="ico">${p.ico||"⚽"}</span>${escapeHtml(p.name)}${mine?' <span style="color:var(--mint);font-size:11px;font-weight:600">· tú</span>':""} ${medal}</div>
-        <div class="sub">${p.ex} marcador(es) exacto(s) · ${p.ac} acierto(s) · ${p.played} jugados</div>
+        <div class="sub">${p.ex} exacto(s) · ${p.ac} acierto(s) · ${p.played} jugados</div>
       </div>
       <div class="score"><div class="pp">${p.pts}</div><div class="lbl">pts</div></div>
     </div>`;
   });
   c.innerHTML=`<div class="lead">
-    <div class="leadhead"><span class="t">Ranking</span><span class="meta">Resultados cargados: ${finished}/${total}</span></div>
+    <div class="leadhead"><span class="t">Ranking Familiar</span><span class="meta">Resultados cargados: ${finished}/${total}</span></div>
     ${rows}
-    <div class="rules" style="margin-top:14px">El ranking se actualiza solo cada pocos segundos a medida que se cargan los resultados oficiales. ${finished===0?"<b>Aún no hay resultados cargados.</b>":""}</div>
+    <div class="rules" style="margin-top:14px">El ranking se sincroniza automáticamente con la base de datos de Google Sheets.</div>
   </div>`;
 }
 
@@ -464,9 +507,8 @@ function renderRanking(c){
 function renderResultados(c){
   S.resDirty=S.resDirty||new Set();
   S.resWork=Object.assign({},S.results);
-  const ms=allMatches().slice().sort((a,b)=>b.kick-a.kick); // most recent first
-  let html=`<div class="rules" style="margin-top:8px;margin-bottom:14px">Carga aquí el <b>resultado oficial</b> de cada partido. Cualquier persona en modo organizador puede hacerlo, así que pónganse de acuerdo en quién los carga para evitar pisarse.</div>`;
-  // add custom match form
+  const ms=allMatches().slice().sort((a,b)=>b.kick-a.kick);
+  let html=`<div class="rules" style="margin-top:8px;margin-bottom:14px">Carga aquí el <b>resultado oficial</b> de cada partido.</div>`;
   html+=`<div class="addbox">
     <div class="ttl">➕ Agregar partido (octavos, cuartos, etc.)</div>
     <div class="addgrid">
@@ -494,9 +536,7 @@ function renderResultados(c){
     </div>`;
   }
   c.innerHTML=html;
-  // wire add
   document.getElementById("cm_add").onclick=addCustomMatch;
-  // wire result inputs
   for(const m of ms){
     const rh=document.getElementById("rh_"+m.id), ra=document.getElementById("ra_"+m.id);
     const on=()=>{
@@ -511,18 +551,18 @@ function renderResultados(c){
 }
 async function saveResultsBatch(){
   S.results=Object.assign({},S.resWork);
-  // strip empties
   Object.keys(S.results).forEach(k=>{const r=S.results[k]; if(!r||r.h==null||r.a==null) delete S.results[k];});
+  toast("Actualizando marcadores oficiales...", false);
   const ok=await setJSON("results",S.results,true);
   S.resDirty.clear(); updateSaveBar();
-  if(ok) toast("Resultados guardados ✓"); else toast("No se pudo guardar.",true);
+  if(ok) toast("Resultados guardados en la nube ✓"); else toast("Error al guardar", true);
+  if(S.view==="ranking") renderRanking(document.getElementById("content"));
 }
 async function addCustomMatch(){
   const home=document.getElementById("cm_home").value.trim();
   const away=document.getElementById("cm_away").value.trim();
   const d=document.getElementById("cm_date").value, t=document.getElementById("cm_time").value;
   if(!home||!away||!d||!t){ toast("Completa equipos, fecha y hora.",true); return; }
-  // interpret as Colombia time (-05:00)
   const kick=new Date(`${d}T${t}:00-05:00`).getTime();
   if(isNaN(kick)){ toast("Fecha u hora inválida.",true); return; }
   const id="c_"+Math.random().toString(36).slice(2,8);
@@ -540,7 +580,7 @@ function showOnboarding(isChange){
   ov.innerHTML=`<div class="card">
     <div class="kicker" style="color:var(--mint)">Bienvenido a la polla</div>
     <h2>${isChange?"Tu jugador":"¿Quién juega?"}</h2>
-    <p>Cada dispositivo es un jugador. Escribe tu nombre y elige un emoji para el ranking.</p>
+    <p>Escribe tu nombre y elige un emoji para el ranking familiar multipersona.</p>
     <label class="field">Tu nombre</label>
     <input class="input" id="nm_in" maxlength="20" placeholder="Ej: ${escapeHtml((S.me&&S.me.name)||"Martín")}" value="${S.me?escapeHtml(S.me.name):""}">
     <div class="avatars" id="avs"></div>
@@ -574,7 +614,7 @@ async function joinRoster(){
   S.roster=r;
 }
 
-/* ---------- Live tick (clocks + lock transitions) ---------- */
+/* ---------- Live tick ---------- */
 function tick(){
   S.now=Date.now();
   if(S.view!=="partidos") return;
@@ -592,33 +632,41 @@ function tick(){
 }
 setInterval(tick,1000);
 
-/* ---------- Poll shared data ---------- */
+/* ---------- Sincronización en segundo plano con la nube ---------- */
 async function refreshShared(){
   try{
+    const ok = await fetchAllShared();
+    if(!ok) return;
+    
     const roster=(await getJSON("roster",true))||S.roster;
     const results=(await getJSON("results",true))||{};
     const custom=(await getJSON("custom",true))||[];
+    
     S.roster=roster; S.custom=custom;
     const resChanged=JSON.stringify(results)!==JSON.stringify(S.results);
-    const cusChanged=JSON.stringify(custom.map(c=>c.id))!==JSON.stringify(S.custom.map(c=>c.id));
     S.results=results;
-    // load each player's predictions
+    
     const preds={};
     for(const pl of roster){ preds[pl.id]=(await getJSON("preds_"+pl.id,true))||{}; }
     S.allPreds=preds;
     if(S.me) S.allPreds[S.me.id]=Object.assign({},S.predsMe,S.allPreds[S.me.id]||{});
+    
     if(S.view==="ranking") renderRanking(document.getElementById("content"));
     else if(S.view==="partidos" && resChanged) allMatches().forEach(m=>paintFoot(m));
-  }catch(e){ /* ignore transient */ }
+  }catch(e){ console.error(e); }
 }
-setInterval(refreshShared,25000);
+// Sincronizar cada 20 segundos automáticamente o cuando el usuario cambie de pestaña
+setInterval(refreshShared,20000);
 window.addEventListener("focus",refreshShared);
-document.addEventListener("visibilitychange",()=>{ if(!document.hidden) refreshShared(); });
 
 /* ---------- Boot ---------- */
 (async function boot(){
   S.me=await getJSON("me",false);
   S.organizer=(await getJSON("organizer",false))||false;
+  
+  // Carga inicial desde la nube
+  await fetchAllShared();
+  
   S.results=(await getJSON("results",true))||{};
   S.custom=(await getJSON("custom",true))||[];
   S.roster=(await getJSON("roster",true))||[];
@@ -626,7 +674,6 @@ document.addEventListener("visibilitychange",()=>{ if(!document.hidden) refreshS
     S.predsMe=(await getJSON("preds_"+S.me.id,true))||{};
     await joinRoster();
   }
-  // load all preds
   for(const pl of S.roster){ S.allPreds[pl.id]=(await getJSON("preds_"+pl.id,true))||{}; }
   if(S.me) S.allPreds[S.me.id]=Object.assign({},S.allPreds[S.me.id]||{},S.predsMe);
   renderShell();
