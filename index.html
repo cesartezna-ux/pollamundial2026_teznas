@@ -690,10 +690,23 @@ async function refreshShared(){
     const preds={};
     for(const pl of roster){ preds[pl.id]=(await getJSON("preds_"+pl.id,true))||{}; }
     S.allPreds=preds;
-    if(S.me) S.allPreds[S.me.id]=Object.assign({},S.predsMe,S.allPreds[S.me.id]||{});
-    
+
+    // Recargar MIS pronósticos desde la nube, conservando lo que esté sin guardar
+    let predsMeChanged=false;
+    if(S.me){
+      const fresh=(await getJSON("preds_"+S.me.id,true))||{};
+      for(const id of S.dirty){ if(S.predsMe[id]!=null) fresh[id]=S.predsMe[id]; }
+      predsMeChanged=JSON.stringify(fresh)!==JSON.stringify(S.predsMe);
+      S.predsMe=fresh;
+      S.allPreds[S.me.id]=Object.assign({},S.predsMe);
+    }
+
     if(S.view==="ranking") renderRanking(document.getElementById("content"));
-    else if(S.view==="partidos" && resChanged) allMatches().forEach(m=>paintFoot(m));
+    else if(S.view==="partidos" && (resChanged||predsMeChanged) && S.dirty.size===0){
+      renderPartidos(document.getElementById("content"));
+    } else if(S.view==="partidos" && resChanged){
+      allMatches().forEach(m=>paintFoot(m));
+    }
   }catch(e){ console.error(e); }
 }
 // Sincronizar cada 20 segundos automáticamente o cuando el usuario cambie de pestaña
