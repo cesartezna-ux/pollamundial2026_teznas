@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>Polla Mundial 2026 · En familia</title>
+<title>Polla Mundial 2026 · Familia Tezna</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Teko:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -161,6 +161,17 @@
   .mini{background:#06120d; border:1px solid var(--faint); border-radius:10px; color:var(--line); font:500 14px var(--body); padding:11px 12px; outline:none; width:100%}
   .mini:focus{border-color:var(--mint)}
   .smallbtn{background:var(--gold); color:#231600; border:none; border-radius:10px; padding:11px; font:700 14px var(--body); cursor:pointer; width:100%}
+
+/* columnas pronóstico/real + stats de cabecera */
+  .cols{display:flex; align-items:center; gap:10px; margin:2px 0 1px}
+  .cols .sp{flex:1}
+  .cols .colh{width:46px; flex:none; text-align:center; font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted)}
+  .box.ro{display:flex; align-items:center; justify-content:center; color:var(--gold); background:#06120d}
+  .box.real{display:flex; align-items:center; justify-content:center; color:var(--mint); border-color:rgba(54,224,191,.35)}
+  .mystats{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px}
+  .mystats .sb{background:var(--panel); border:1px solid var(--faint); border-radius:999px; padding:6px 12px; font-size:13px; color:var(--muted)}
+  .mystats .sb b{color:var(--gold); font-family:var(--score); font-size:16px}
+  
 </style>
 
 <div class="wrap" id="root"></div>
