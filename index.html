@@ -388,28 +388,35 @@ function renderView(){
 }
 
 function matchCardHtml(m){
-  const locked=S.now>=m.kick;
-  const p=S.predsMe[m.id]||{};
-  const res=S.results[m.id];
-  const colo=COLO(m);
-  const hv=(p.h!=null?p.h:""), av=(p.a!=null?p.a:"");
-  const homeWin=res&&res.h>res.a, awayWin=res&&res.a>res.h;
+  const locked = S.now >= m.kick;
+  const p = S.predsMe[m.id] || {};
+  const res = S.results[m.id];
+  const colo = COLO(m);
+  const ph = (p.h!=null?p.h:""), pa = (p.a!=null?p.a:"");
+  const rh = res ? res.h : "–", ra = res ? res.a : "–";
+  const homeWin = res && res.h>res.a, awayWin = res && res.a>res.h;
+  const predBox = (side,val) => locked
+    ? `<div class="box ro">${val!==""?val:"–"}</div>`
+    : `<input class="box" id="${side}_${m.id}" type="number" inputmode="numeric" min="0" max="49" placeholder="–" value="${val}">`;
   return `
   <div class="match ${colo?"col":""}" id="card_${m.id}">
     <div class="mtop">
       <span class="grp ${colo?"colrib":""}">${colo?"¡Juega Colombia! 🇨🇴":"Grupo "+m.g}</span>
       <span class="when">${cap(FD.format(m.kick))} · ${FT.format(m.kick)}<span class="cd" id="cd_${m.id}"></span></span>
     </div>
+    <div class="cols"><span class="sp"></span><span class="colh">Pron.</span><span class="colh">Real</span></div>
     <div class="team">
       <span class="fl">${flag(m.home)}</span>
       <span class="nm ${homeWin?"win":""}">${escapeHtml(m.home)}</span>
-      <input class="box" id="h_${m.id}" type="number" inputmode="numeric" min="0" max="49" placeholder="–" value="${hv}" ${locked?"disabled":""}>
+      ${predBox("h", ph)}
+      <div class="box real">${rh}</div>
     </div>
     <div class="divider"></div>
     <div class="team">
       <span class="fl">${flag(m.away)}</span>
       <span class="nm ${awayWin?"win":""}">${escapeHtml(m.away)}</span>
-      <input class="box" id="a_${m.id}" type="number" inputmode="numeric" min="0" max="49" placeholder="–" value="${av}" ${locked?"disabled":""}>
+      ${predBox("a", pa)}
+      <div class="box real">${ra}</div>
     </div>
     <div class="mfoot" id="foot_${m.id}"></div>
   </div>`;
