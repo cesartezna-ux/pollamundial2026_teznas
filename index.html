@@ -756,29 +756,22 @@ window.addEventListener("focus",refreshShared);
     S.allPreds = {};
     S.me = await getJSON("me", false);
     S.organizer = (await getJSON("organizer", false)) || false;
-
-    // Descargar TODO el estado compartido desde la nube
     await fetchAllShared();
     S.results = (await getJSON("results", true)) || {};
     S.custom  = (await getJSON("custom", true)) || [];
     S.roster  = (await getJSON("roster", true)) || [];
-
-    // Mis pronósticos
     if (S.me) {
       S.predsMe = (await getJSON("preds_" + S.me.id, true)) || {};
       await joinRoster();
     }
-    // Pronósticos de todos (para el ranking)
     for (const pl of S.roster) { S.allPreds[pl.id] = (await getJSON("preds_" + pl.id, true)) || {}; }
     if (S.me) S.allPreds[S.me.id] = Object.assign({}, S.predsMe);
-
     renderShell();
     renderView();
-    refreshShared(); // segunda pasada inmediata por si algo no llegó a tiempo
+    refreshShared();
   } catch (e) {
-    console.error("Error en el arranque de la Polla:", e);
-    renderShell();
-    renderView();
+    console.error("Error en el arranque:", e);
+    renderShell(); renderView();
   }
 })();
 
