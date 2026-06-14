@@ -25,7 +25,8 @@
   a{color:var(--mint)}
 
   /* Header */
-  header{padding:22px 2px 12px; position:sticky; top:0; z-index:10; background:var(--pitch)}
+  header{padding:22px 2px 12px; position:relative}
+  .topfijo{position:sticky; top:0; z-index:30; background:var(--pitch); padding-bottom:4px}
   .kicker{font:600 11px/1 var(--body); letter-spacing:.22em; text-transform:uppercase; color:var(--mint)}
   h1{font-family:var(--display); font-weight:400; margin:6px 0 2px;
      font-size:clamp(34px,9vw,52px); line-height:.92; letter-spacing:.5px; text-transform:uppercase}
@@ -43,7 +44,7 @@
 
   /* Tabs */
   .tabs{display:flex; gap:6px; position:static; z-index:20; padding:10px 0;
-    background:linear-gradient(var(--pitch) 70%, transparent)}
+    background:var(--pitch)}
   .tab{flex:1; text-align:center; padding:11px 8px; border-radius:12px; cursor:pointer;
     background:var(--panel); border:1px solid var(--faint); color:var(--muted);
     font-weight:600; font-size:13.5px; letter-spacing:.02em}
@@ -348,21 +349,23 @@ function toast(msg,warn){ elToast.textContent=msg; elToast.className="toast show
 function renderShell(){
   const me=S.me;
   root.innerHTML=`
-    <header>
-      <div class="kicker">Polla en familia · Hora de Colombia</div>
-      <h1>Polla Mundial <span class="yr">2026</span></h1>
-      <div class="sub">Acierta el resultado y clava el marcador. Que gane el más mundialista de la casa.</div>
-      <div class="whoami">
-        <span class="chip"><span class="dot"></span> Juegas como <b>${me?escapeHtml(me.ico+" "+me.name):"—"}</b></span>
-        <button class="link-btn" id="changeName">cambiar</button>
-        <button class="keybtn ${S.organizer?"on":""}" id="orgBtn" title="Modo organizador">🔑 Organizador</button>
+    <div class="topfijo">
+      <header>
+        <div class="kicker">Polla en familia · Hora de Colombia</div>
+        <h1>Polla Mundial <span class="yr">2026</span></h1>
+        <div class="sub">Acierta el resultado y clava el marcador. Que gane el más mundialista de la casa.</div>
+        <div class="whoami">
+          <span class="chip"><span class="dot"></span> Juegas como <b>${me?escapeHtml(me.ico+" "+me.name):"—"}</b></span>
+          <button class="link-btn" id="changeName">cambiar</button>
+          <button class="keybtn ${S.organizer?"on":""}" id="orgBtn" title="Modo organizador">🔑 Organizador</button>
+        </div>
+        <div class="mystats" id="mystats"></div>
+      </header>
+      <div class="tabs" id="tabs">
+        <div class="tab" data-v="partidos">Partidos</div>
+        <div class="tab" data-v="ranking">Ranking</div>
+        <div class="tab" data-v="resultados" style="display:none">Resultados</div>
       </div>
-      <div class="mystats" id="mystats"></div>
-    </header>
-    <div class="tabs" id="tabs">
-      <div class="tab" data-v="partidos">Partidos</div>
-      <div class="tab" data-v="ranking">Ranking</div>
-      <div class="tab" data-v="resultados" style="display:none">Resultados</div>
     </div>
     <div id="content"></div>
   `;
