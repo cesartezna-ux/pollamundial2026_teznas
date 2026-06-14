@@ -744,6 +744,7 @@ async function refreshShared(){
     } else if(S.view==="partidos" && resChanged){
       allMatches().forEach(m=>paintFoot(m));
     }
+    paintMyStats();
   }catch(e){ console.error(e); }
 }
 // Sincronizar cada 20 segundos automáticamente o cuando el usuario cambie de pestaña
