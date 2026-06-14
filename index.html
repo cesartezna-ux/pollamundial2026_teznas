@@ -578,7 +578,6 @@ function renderResultados(c){
     </div>`;
   }
   c.innerHTML=html;
-  document.getElementById("cm_add").onclick=addCustomMatch;
   for(const m of ms){
     const rh=document.getElementById("rh_"+m.id), ra=document.getElementById("ra_"+m.id);
     const on=()=>{
