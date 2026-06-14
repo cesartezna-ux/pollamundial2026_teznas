@@ -470,16 +470,22 @@ function paintFoot(m){
   const p=S.predsMe[m.id];
   let left="", right="";
   if(res){
-    left=`<span class="final"><b>Final ${res.h}–${res.a}</b></span>`;
-    const pp=ptsFor(p,res);
-    if(p){ const cls=pp===3?"p3":(pp===1?"p1":"p0"); right=`<span class="pts ${cls}">+${pp}</span>`; }
-    else { right=`<span class="status">Sin pronóstico</span>`; }
+    if(p){
+      const pp=ptsFor(p,res);
+      const cls=pp===3?"p3":(pp===1?"p1":"p0");
+      const txt=pp===3?"¡Marcador exacto!":(pp===1?"Acertaste el ganador":"No acertaste");
+      left=`<span class="status">${txt}</span>`;
+      right=`<span class="pts ${cls}">+${pp} pts</span>`;
+    } else {
+      left=`<span class="status">No pronosticaste</span>`;
+      right=`<span class="pts p0">0 pts</span>`;
+    }
   } else if(locked){
     left=`<span class="status locked">🔒 Cerrado</span>`;
-    right = p?`<span class="status">Tu pronóstico: <b style="color:var(--line)">${p.h}–${p.a}</b></span>`:`<span class="status">No pronosticaste</span>`;
+    right = p?`<span class="status">Tu pronóstico: <b style="color:var(--line)">${p.h}–${p.a}</b></span>`:`<span class="status">Sin pronóstico</span>`;
   } else {
-    left=`<span class="status">Abierto para pronosticar</span>`;
-    right = p?`<span class="status">✓ <b style="color:var(--mint)">${p.h}–${p.a}</b></span>`:"";
+    left=`<span class="status">Abierto · escribe tu pronóstico</span>`;
+    right = p?`<span class="status">✓ guardado</span>`:"";
   }
   e.foot.innerHTML=`<span>${left}</span><span>${right}</span>`;
 }
