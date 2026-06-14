@@ -703,38 +703,30 @@ window.addEventListener("focus",refreshShared);
 /* ---------- Boot ---------- */
 (async function boot(){
   try {
-    // 1. Inicializar el contenedor global de predicciones
-    S.allPreds = S.allPreds || {};
-    
-    // 2. Cargar datos de identidad del usuario actual
+    S.allPreds = {};
     S.me = await getJSON("me", false);
     S.organizer = (await getJSON("organizer", false)) || false;
-    
-    // 3. Descargar los datos reales desde la nube de Google Sheets
+
+    // Descargar TODO el estado compartido desde la nube
     await fetchAllShared();
-    
-    // 4. AMARRE DE SEGURIDAD: Asegurar que las variables globales pasen a la estructura S
-    if (typeof results !== 'undefined') S.results = results;
-    if (typeof roster !== 'undefined') S.roster = roster;
-    if (typeof custom !== 'undefined') S.custom = custom;
-    
-    S.results = S.results || {};
-    S.custom = S.custom || [];
-    S.roster = S.roster || [];
-    
-    // 5. Cargar predicciones del usuario activo si existe
-    if(S.me){
+    S.results = (await getJSON("results", true)) || {};
+    S.custom  = (await getJSON("custom", true)) || [];
+    S.roster  = (await getJSON("roster", true)) || [];
+
+    // Mis pronósticos
+    if (S.me) {
       S.predsMe = (await getJSON("preds_" + S.me.id, true)) || {};
       await joinRoster();
-      S.allPreds[S.me.id] = Object.assign({}, S.allPreds[S.me.id] || {}, S.predsMe);
     }
-    
-    // 6. Dibujar la aplicación de forma inmediata sin ciclos locales que la bloqueen
+    // Pronósticos de todos (para el ranking)
+    for (const pl of S.roster) { S.allPreds[pl.id] = (await getJSON("preds_" + pl.id, true)) || {}; }
+    if (S.me) S.allPreds[S.me.id] = Object.assign({}, S.predsMe);
+
     renderShell();
     renderView();
-    
-  } catch(e) {
-    console.error("Error crítico en el arranque de la Polla:", e);
+    refreshShared(); // segunda pasada inmediata por si algo no llegó a tiempo
+  } catch (e) {
+    console.error("Error en el arranque de la Polla:", e);
     renderShell();
     renderView();
   }
