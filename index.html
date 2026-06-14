@@ -357,6 +357,7 @@ function renderShell(){
         <button class="link-btn" id="changeName">cambiar</button>
         <button class="keybtn ${S.organizer?"on":""}" id="orgBtn" title="Modo organizador">🔑 Organizador</button>
       </div>
+      <div class="mystats" id="mystats"></div>
     </header>
     <div class="tabs" id="tabs">
       <div class="tab" data-v="partidos">Partidos</div>
@@ -373,6 +374,17 @@ function renderShell(){
   const rt=document.querySelector('[data-v="resultados"]'); if(rt) rt.style.display=S.organizer?"":"none";
 }
 
+function paintMyStats(){
+  const el=document.getElementById("mystats"); if(!el)return;
+  if(!S.me){ el.innerHTML=""; return; }
+  const {board}=buildBoard();
+  const idx=board.findIndex(p=>p.id===S.me.id);
+  const pts=idx>=0?board[idx].pts:0;
+  const rank=idx>=0?idx+1:null;
+  el.innerHTML=`<span class="sb"><b>${pts}</b> pts totales</span>`+
+    (rank?`<span class="sb">Puesto <b>#${rank}</b> de ${board.length}</span>`:"");
+}
+  
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 
 let matchEls={};
