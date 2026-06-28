@@ -629,7 +629,7 @@ function renderResultados(c){
   c.innerHTML = html;
 
   // Wire: agregar partido
-  document.getElementById("cm_add").onclick = addCustomMatch;
+  document.getElementById("cm_add").onclick = ustomMatch;
 
   // Wire: inputs de resultados
   for(const m of ms){
@@ -656,15 +656,17 @@ async function saveResultsBatch(){
   if(S.view==="ranking") renderRanking(document.getElementById("content"));
 }
 async function addCustomMatch(){
-  const home=document.getElementById("cm_home").value.trim();
-  const away=document.getElementById("cm_away").value.trim();
-  const d=document.getElementById("cm_date").value, t=document.getElementById("cm_time").value;
+  const home = document.getElementById("cm_home").value.trim();
+  const away = document.getElementById("cm_away").value.trim();
+  const d    = document.getElementById("cm_date").value;
+  const t    = document.getElementById("cm_time").value;
+  const fase = document.getElementById("cm_fase").value.trim()||"Eliminatoria";
   if(!home||!away||!d||!t){ toast("Completa equipos, fecha y hora.",true); return; }
-  const kick=new Date(`${d}T${t}:00-05:00`).getTime();
+  const kick = new Date(`${d}T${t}:00-05:00`).getTime();
   if(isNaN(kick)){ toast("Fecha u hora inválida.",true); return; }
-  const id="c_"+Math.random().toString(36).slice(2,8);
-  S.custom.push({id,g:"PLAY",home,away,kick});
-  await setJSON("custom",S.custom,true);
+  const id = "c_"+Math.random().toString(36).slice(2,8);
+  S.custom.push({id, g:fase, home, away, kick});
+  await setJSON("custom", S.custom, true);
   toast("Partido agregado ✓");
   renderResultados(document.getElementById("content"));
 }
