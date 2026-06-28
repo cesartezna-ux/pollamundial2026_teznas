@@ -575,39 +575,71 @@ function renderRanking(c){
 
 /* ---------- Resultados (organizer) ---------- */
 function renderResultados(c){
-  S.resDirty=S.resDirty||new Set();
-  S.resWork=Object.assign({},S.results);
-  const ms=allMatches().slice().sort((a,b)=>b.kick-a.kick);
-  
-  let html=`<div class="rules" style="margin-top:8px;margin-bottom:14px">Carga aquí el <b>resultado oficial</b> de cada partido.</div>`;
-  
-  // BOTÓN PRO: Sincronización en caliente con la API de Google Sheets / FIFA
-  html+=`<div class="addbox" style="margin-top:10px; margin-bottom:15px; border-color: var(--mint);">
-    <button class="smallbtn full" id="api_sync_btn" onclick="forzarSincronizacionAPI()" style="background-color: #36e0bf; color: #06241d; font-weight:700;">🔄 Sincronizar Resultados FIFA en Vivo</button>
+  S.resDirty = S.resDirty||new Set();
+  S.resWork  = Object.assign({},S.results);
+  const ms   = allMatches().slice().sort((a,b)=>b.kick-a.kick);
+
+  let html = `<div class="rules" style="margin-top:8px;margin-bottom:14px">
+    Carga el <b>resultado oficial</b> de cada partido o agrega nuevos cruces de eliminatorias.</div>`;
+
+  // Botón sincronizar
+  html += `<div class="addbox" style="border-color:var(--mint);margin-bottom:15px">
+    <button class="smallbtn full" id="api_sync_btn" onclick="forzarSincronizacionAPI()"
+      style="background:#36e0bf;color:#06241d;font-weight:700;">🔄 Sincronizar Resultados FIFA en Vivo</button>
   </div>`;
-  
+
+  // Formulario agregar partido eliminatorio
+  html += `<div class="addbox">
+    <div class="ttl">➕ Agregar partido eliminatorio</div>
+    <div class="addgrid">
+      <input class="mini" id="cm_home" placeholder="Equipo local (ej: México)">
+      <input class="mini" id="cm_away" placeholder="Equipo visitante (ej: Francia)">
+      <input class="mini" id="cm_date" type="date" value="${new Date().toISOString().slice(0,10)}">
+      <input class="mini" id="cm_time" type="time" value="14:00">
+      <input class="mini full" id="cm_fase" placeholder="Fase (ej: Octavos, Cuartos, Semis, Final)">
+      <button class="smallbtn full" id="cm_add">Agregar partido</button>
+    </div>
+  </div>`;
+
+  // Lista de partidos para cargar resultados
   for(const m of ms){
-    const r=S.resWork[m.id]||{};
-    const locked=S.now>=m.kick;
-    html+=`<div class="match" style="border-radius:14px">
+    const r = S.resWork[m.id]||{};
+    const locked = S.now>=m.kick;
+    html += `<div class="match" style="border-radius:14px">
       <div class="mtop">
-        <span class="grp">${m.custom?"Eliminatoria":"Grupo "+m.g}</span>
-        <span class="when">${cap(FD.format(m.kick))} · ${FT.format(m.kick)} ${locked?"":"<span style='color:var(--flare)'>· aún no inicia</span>"}</span>
+        <span class="grp">${m.custom?"🏆 "+m.g:"Grupo "+m.g}</span>
+        <span class="when">${cap(FD.format(m.kick))} · ${FT.format(m.kick)}
+          ${locked?"":"<span style='color:var(--flare)'>· aún no inicia</span>"}
+        </span>
       </div>
-      <div class="team"><span class="fl">${flag(m.home)}</span><span class="nm">${escapeHtml(m.home)}</span>
-        <input class="box" id="rh_${m.id}" type="number" inputmode="numeric" min="0" max="49" placeholder="–" value="${r.h!=null?r.h:""}"></div>
+      <div class="team"><span class="fl">${flag(m.home)}</span>
+        <span class="nm">${escapeHtml(m.home)}</span>
+        <input class="box" id="rh_${m.id}" type="number" inputmode="numeric"
+          min="0" max="49" placeholder="–" value="${r.h!=null?r.h:""}">
+      </div>
       <div class="divider"></div>
-      <div class="team"><span class="fl">${flag(m.away)}</span><span class="nm">${escapeHtml(m.away)}</span>
-        <input class="box" id="ra_${m.id}" type="number" inputmode="numeric" min="0" max="49" placeholder="–" value="${r.a!=null?r.a:""}"></div>
+      <div class="team"><span class="fl">${flag(m.away)}</span>
+        <span class="nm">${escapeHtml(m.away)}</span>
+        <input class="box" id="ra_${m.id}" type="number" inputmode="numeric"
+          min="0" max="49" placeholder="–" value="${r.a!=null?r.a:""}">
+      </div>
     </div>`;
   }
-  c.innerHTML=html;
+
+  c.innerHTML = html;
+
+  // Wire: agregar partido
+  document.getElementById("cm_add").onclick = addCustomMatch;
+
+  // Wire: inputs de resultados
   for(const m of ms){
     const rh=document.getElementById("rh_"+m.id), ra=document.getElementById("ra_"+m.id);
+    if(!rh||!ra) continue;
     const on=()=>{
       let h=clampVal(rh.value), a=clampVal(ra.value);
-      if(rh.value!==String(h))rh.value=h; if(ra.value!==String(a))ra.value=a;
-      if(h===""||a===""){ delete S.resWork[m.id]; } else { S.resWork[m.id]={h,a}; }
+      if(rh.value!==String(h)) rh.value=h;
+      if(ra.value!==String(a)) ra.value=a;
+      if(h===""||a===""){delete S.resWork[m.id];}else{S.resWork[m.id]={h,a};}
       S.resDirty.add(m.id); updateSaveBar();
     };
     rh.oninput=on; ra.oninput=on;
