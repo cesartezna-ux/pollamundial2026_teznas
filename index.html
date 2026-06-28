@@ -270,26 +270,10 @@ const S = {
 const AVATARS=["⚽","🏆","🦁","🐯","🔥","⭐","🚀","🐉","🌶️","🎯","👑","🐺"];
 
 function allMatches(){
-  let partidosTotales = FIXTURE.slice();
-
-  // Crear las llaves base fijas si no existen en el FIXTURE original
-  if (!partidosTotales.some(m => m.id === "m_octavos_1")) {
-    partidosTotales.push({
-      id: "m_octavos_1",
-      g: "Octavos",
-      home: "1° Grupo A",
-      away: "2° Grupo B",
-      kick: 1782632400000 // Timestamp genérico para que no falle el orden
-    }, {
-      id: "m_octavos_2",
-      g: "Octavos",
-      home: "1° Grupo B",
-      away: "2° Grupo A",
-      kick: 1782718800000
-    });
-  }
-
-  return partidosTotales;
+  const cm = S.custom.map(c=>({
+    id:c.id, g:c.g||"ELIM", home:c.home, away:c.away, kick:c.kick, custom:true
+  }));
+  return FIXTURE.concat(cm).sort((a,b)=>a.kick-b.kick);
 }
   
 function outcome(h, a) {
