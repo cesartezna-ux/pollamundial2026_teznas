@@ -671,46 +671,288 @@ async function addCustomMatch(){
   renderResultados(document.getElementById("content"));
 }
 
-/* ---------- Onboarding ---------- */
-let pendingIco=AVATARS[0];
-function showOnboarding(isChange){
-  pendingIco=(S.me&&S.me.ico)||AVATARS[0];
+/* ================================================================
+   SISTEMA DE LOGIN CON LISTA + PIN
+   Reemplaza en index.html las funciones:
+     - showOnboarding  (completa)
+     - joinRoster      (completa)
+   Y agrega las funciones nuevas:
+     - _hashPin, _verifyPin, showPinReset (nuevas, agregar al final del <script>)
+   ================================================================ */
+
+
+/* ----------------------------------------------------------------
+   HASH simple del PIN (no es criptografía real, es ofuscación
+   suficiente para una polla familiar sin datos sensibles).
+   ---------------------------------------------------------------- */
+function _hashPin(pin){
+  let h=0;
+  for(let i=0;i<pin.length;i++){ h=((h<<5)-h)+pin.charCodeAt(i); h|=0; }
+  return "ph_"+Math.abs(h).toString(36);
+}
+
+
+/* ----------------------------------------------------------------
+   showOnboarding — nueva versión con lista de jugadores + PIN
+   ---------------------------------------------------------------- */
+async function showOnboarding(isChange){
+  // Quitar overlay anterior si existe
+  const old=document.getElementById("ovl"); if(old) old.remove();
+
   const ov=document.createElement("div"); ov.className="overlay"; ov.id="ovl";
-  ov.innerHTML=`<div class="card">
-    <div class="kicker" style="color:var(--mint)">Bienvenido a la polla</div>
-    <h2>${isChange?"Tu jugador":"¿Quién juega?"}</h2>
-    <p>Escribe tu nombre y elige un emoji para el ranking familiar multipersona.</p>
-    <label class="field">Tu nombre</label>
-    <input class="input" id="nm_in" maxlength="20" placeholder="Ej: ${escapeHtml((S.me&&S.me.name)||"Martín")}" value="${S.me?escapeHtml(S.me.name):""}">
-    <div class="avatars" id="avs"></div>
-    <button class="btn" id="enterBtn">${isChange?"Guardar":"Entrar a jugar"}</button>
-    ${isChange?'<button class="btn ghost" id="cancelBtn" style="margin-top:10px">Cancelar</button>':""}
-  </div>`;
   document.body.appendChild(ov);
-  const avs=ov.querySelector("#avs");
-  AVATARS.forEach(a=>{
-    const d=document.createElement("div"); d.className="av"+(a===pendingIco?" sel":""); d.textContent=a;
-    d.onclick=()=>{ pendingIco=a; avs.querySelectorAll(".av").forEach(x=>x.classList.toggle("sel",x.textContent===a)); };
-    avs.appendChild(d);
-  });
-  const inp=ov.querySelector("#nm_in"); setTimeout(()=>inp.focus(),50);
-  ov.querySelector("#enterBtn").onclick=async()=>{
-    const name=inp.value.trim(); if(!name){ inp.focus(); inp.style.borderColor="var(--flare)"; return; }
-    if(!S.me) S.me={id:"p_"+Math.random().toString(36).slice(2,9),name,ico:pendingIco};
-    else { S.me.name=name; S.me.ico=pendingIco; }
+
+  // Cargar roster fresco de la nube
+  const roster=(await getJSON("roster",true))||[];
+
+  // Pantalla de selección de jugador
+  function renderSelectScreen(){
+    pendingIco = AVATARS[0];
+    ov.innerHTML=`<div class="card" style="max-height:90vh;overflow-y:auto">
+      <div class="kicker" style="color:var(--mint)">Bienvenido a la polla</div>
+      <h2>¿Quién juega?</h2>
+      ${roster.length>0?`
+        <p style="color:var(--muted);font-size:13px;margin:0 0 10px">Selecciona tu nombre de la lista o regístrate si eres nuevo.</p>
+        <input class="input" id="search_in" placeholder="🔍 Buscar jugador..." style="margin-bottom:10px">
+        <div id="player_list" style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto;margin-bottom:14px"></div>
+        <div style="height:1px;background:var(--faint);margin:10px 0"></div>
+      `:`<p style="color:var(--muted);font-size:13px;margin:0 0 16px">Todavía no hay jugadores. ¡Sé el primero!</p>`}
+      <button class="btn ghost" id="newPlayerBtn" style="margin-bottom:0">➕ Soy nuevo / registrarme</button>
+      ${isChange?`<button class="btn ghost" id="cancelBtn" style="margin-top:10px;border-color:var(--flare);color:var(--flare)">Cancelar</button>`:""}
+    </div>`;
+
+    // Renderizar lista filtrable
+    function renderList(filter){
+      const list=document.getElementById("player_list"); if(!list)return;
+      const filtered=roster.filter(p=>p.name.toLowerCase().includes(filter.toLowerCase()));
+      if(filtered.length===0){ list.innerHTML=`<div style="color:var(--muted);font-size:13px;text-align:center;padding:12px">Sin resultados</div>`; return; }
+      list.innerHTML=filtered.map(p=>`
+        <button class="player-row" data-id="${p.id}" style="display:flex;align-items:center;gap:12px;background:var(--panel2);border:1px solid var(--faint);border-radius:12px;padding:12px 14px;cursor:pointer;color:var(--line);font:inherit;text-align:left">
+          <span style="font-size:22px">${p.ico||"⚽"}</span>
+          <span style="font-weight:700;font-size:15px;flex:1">${escapeHtml(p.name)}</span>
+          <span style="color:var(--muted);font-size:12px">→</span>
+        </button>`).join("");
+      list.querySelectorAll(".player-row").forEach(btn=>{
+        btn.onclick=()=>{
+          const pl=roster.find(p=>p.id===btn.dataset.id);
+          if(pl) renderPinScreen(pl);
+        };
+      });
+    }
+    renderList("");
+    const si=document.getElementById("search_in");
+    if(si) si.oninput=()=>renderList(si.value);
+    document.getElementById("newPlayerBtn").onclick=()=>renderNewPlayerScreen();
+    const cb=document.getElementById("cancelBtn"); if(cb) cb.onclick=()=>ov.remove();
+  }
+
+  // Pantalla de PIN para jugador existente
+  function renderPinScreen(player){
+    ov.innerHTML=`<div class="card">
+      <button id="backBtn" style="background:none;border:none;color:var(--muted);font:inherit;font-size:13px;cursor:pointer;padding:0 0 12px;display:flex;align-items:center;gap:6px">← Volver</button>
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="font-size:42px">${player.ico||"⚽"}</div>
+        <div style="font-weight:700;font-size:18px;margin-top:6px">${escapeHtml(player.name)}</div>
+      </div>
+      <label class="field">Tu PIN de 4 dígitos</label>
+      <input class="input" id="pin_in" type="password" inputmode="numeric" maxlength="4"
+        pattern="[0-9]*" placeholder="••••" style="letter-spacing:.3em;font-size:24px;text-align:center">
+      <div id="pin_err" style="color:var(--flare);font-size:12px;min-height:18px;margin-top:6px;text-align:center"></div>
+      <button class="btn" id="enterBtn" style="margin-top:14px">Entrar</button>
+      <button id="forgotBtn" style="background:none;border:none;color:var(--muted);font:inherit;font-size:12px;cursor:pointer;text-decoration:underline;padding:10px;display:block;margin:0 auto">Olvidé mi PIN</button>
+    </div>`;
+    document.getElementById("backBtn").onclick=renderSelectScreen;
+    const pi=document.getElementById("pin_in");
+    setTimeout(()=>pi.focus(),80);
+
+    async function tryLogin(){
+      const pin=pi.value.trim();
+      if(pin.length<4){ document.getElementById("pin_err").textContent="El PIN debe tener 4 dígitos."; return; }
+      // Verificar PIN
+      const storedHash=await getJSON("pin_"+player.id,true);
+      if(!storedHash){
+        // Jugador sin PIN aún (migrado del sistema viejo) → aceptar y pedirle que cree uno
+        await _loginPlayer(player, pin, true);
+        return;
+      }
+      if(_hashPin(pin)!==storedHash){
+        document.getElementById("pin_err").textContent="PIN incorrecto. Intenta de nuevo.";
+        pi.value=""; pi.focus(); return;
+      }
+      await _loginPlayer(player, pin, false);
+    }
+    document.getElementById("enterBtn").onclick=tryLogin;
+    pi.onkeydown=e=>{ if(e.key==="Enter") tryLogin(); };
+    document.getElementById("forgotBtn").onclick=()=>{
+      document.getElementById("pin_err").textContent="";
+      ov.innerHTML=`<div class="card">
+        <h2 style="font-size:20px">PIN olvidado</h2>
+        <p style="color:var(--muted);font-size:13px;margin:0 0 16px">Contacta al organizador de la polla para que resetee tu PIN. Una vez reseteado, podrás crear uno nuevo al entrar.</p>
+        <p style="color:var(--muted);font-size:13px">Jugador: <b style="color:var(--line)">${escapeHtml(player.name)}</b></p>
+        <button class="btn ghost" id="backBtn2" style="margin-top:16px">← Volver</button>
+      </div>`;
+      document.getElementById("backBtn2").onclick=()=>renderPinScreen(player);
+    };
+  }
+
+  // Pantalla de registro de jugador nuevo
+  function renderNewPlayerScreen(){
+    pendingIco=AVATARS[0];
+    ov.innerHTML=`<div class="card" style="max-height:90vh;overflow-y:auto">
+      <button id="backBtn" style="background:none;border:none;color:var(--muted);font:inherit;font-size:13px;cursor:pointer;padding:0 0 12px;display:flex;align-items:center;gap:6px">← Volver</button>
+      <div class="kicker" style="color:var(--mint)">Nuevo jugador</div>
+      <h2>Crea tu perfil</h2>
+      <label class="field">Tu nombre</label>
+      <input class="input" id="nm_in" maxlength="20" placeholder="Ej: Martín">
+      <div class="avatars" id="avs" style="margin:14px 0 16px"></div>
+      <label class="field">Crea un PIN de 4 dígitos</label>
+      <input class="input" id="pin1_in" type="password" inputmode="numeric" maxlength="4"
+        pattern="[0-9]*" placeholder="••••" style="letter-spacing:.3em;font-size:24px;text-align:center">
+      <label class="field" style="margin-top:10px">Confirma tu PIN</label>
+      <input class="input" id="pin2_in" type="password" inputmode="numeric" maxlength="4"
+        pattern="[0-9]*" placeholder="••••" style="letter-spacing:.3em;font-size:24px;text-align:center">
+      <div id="reg_err" style="color:var(--flare);font-size:12px;min-height:18px;margin-top:6px;text-align:center"></div>
+      <div style="background:rgba(54,224,191,.08);border:1px solid rgba(54,224,191,.2);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--muted);margin:10px 0 16px">
+        💡 <b style="color:var(--line)">Guarda tu PIN</b> — lo necesitarás cada vez que entres, incluso desde otro celular.
+      </div>
+      <button class="btn" id="regBtn">Registrarme y entrar</button>
+    </div>`;
+    document.getElementById("backBtn").onclick=renderSelectScreen;
+    const avs=ov.querySelector("#avs");
+    AVATARS.forEach(a=>{
+      const d=document.createElement("div"); d.className="av"+(a===pendingIco?" sel":""); d.textContent=a;
+      d.onclick=()=>{ pendingIco=a; avs.querySelectorAll(".av").forEach(x=>x.classList.toggle("sel",x.textContent===a)); };
+      avs.appendChild(d);
+    });
+    const inp=document.getElementById("nm_in");
+    setTimeout(()=>inp.focus(),80);
+    document.getElementById("regBtn").onclick=async()=>{
+      const name=inp.value.trim();
+      const pin1=document.getElementById("pin1_in").value.trim();
+      const pin2=document.getElementById("pin2_in").value.trim();
+      const err=document.getElementById("reg_err");
+      if(!name){ inp.focus(); inp.style.borderColor="var(--flare)"; err.textContent="Escribe tu nombre."; return; }
+      if(pin1.length<4){ err.textContent="El PIN debe tener 4 dígitos."; return; }
+      if(pin1!==pin2){ err.textContent="Los PINes no coinciden."; return; }
+      if(roster.find(p=>p.name.toLowerCase()===name.toLowerCase())){
+        err.textContent="Ya existe un jugador con ese nombre. ¿Eres tú? Selecciónate de la lista."; return;
+      }
+      const newId="p_"+Math.random().toString(36).slice(2,9);
+      S.me={id:newId, name, ico:pendingIco};
+      await setJSON("me",S.me,false);
+      await setJSON("pin_"+newId,_hashPin(pin1),true);
+      await joinRoster();
+      ov.remove(); renderShell(); renderView();
+      toast(`¡Bienvenido ${name}! Tu PIN queda guardado.`,false,4000);
+    };
+  }
+
+  // Login efectivo: establece S.me, migra pronósticos si viene del sistema viejo, guarda PIN si es primera vez
+  async function _loginPlayer(player, pin, isFirstTime){
+    S.me={id:player.id, name:player.name, ico:player.ico};
     await setJSON("me",S.me,false);
+    if(isFirstTime){
+      // Jugador del sistema viejo: guardar su PIN por primera vez
+      await setJSON("pin_"+player.id,_hashPin(pin),true);
+      toast(`¡Hola ${player.name}! PIN creado. Recuérdalo.`,false,5000);
+    }
+    // Migración automática: buscar pronósticos bajo ids viejos (p_ + 7 chars)
+    await _migrarPronosticos(player.id);
+    S.predsMe=(await getJSON("preds_"+player.id,true))||{};
     await joinRoster();
     ov.remove(); renderShell(); renderView();
-  };
-  const cb=ov.querySelector("#cancelBtn"); if(cb) cb.onclick=()=>ov.remove();
-  inp.onkeydown=e=>{ if(e.key==="Enter") ov.querySelector("#enterBtn").click(); };
+    if(!isFirstTime) toast(`¡Bienvenido de vuelta, ${player.name}!`,false,3000);
+  }
+
+  // Si isChange (cambiar nombre/emoji desde el header), va directo a su pantalla
+  if(isChange && S.me){
+    const player=roster.find(p=>p.id===S.me.id);
+    if(player){ renderPinScreen(player); return; }
+  }
+  renderSelectScreen();
 }
+
+
+/* ----------------------------------------------------------------
+   joinRoster — sin cambios de lógica, pero asegura que el objeto
+   guardado incluya siempre ico y name actualizados.
+   ---------------------------------------------------------------- */
 async function joinRoster(){
   const r=(await getJSON("roster",true))||[];
   const i=r.findIndex(p=>p.id===S.me.id);
-  if(i>=0){ r[i]=S.me; } else { r.push(S.me); }
+  if(i>=0){ r[i]={...r[i], name:S.me.name, ico:S.me.ico}; }
+  else { r.push({id:S.me.id, name:S.me.name, ico:S.me.ico}); }
   await setJSON("roster",r,true);
   S.roster=r;
+}
+
+
+/* ----------------------------------------------------------------
+   _migrarPronosticos — busca si existen pronósticos guardados bajo
+   el id actual y los preserva. Para jugadores que venían del sistema
+   viejo, sus pronósticos ya están bajo su id correcto, así que esta
+   función es principalmente un seguro.
+   ---------------------------------------------------------------- */
+async function _migrarPronosticos(targetId){
+  try{
+    const existing=await getJSON("preds_"+targetId,true);
+    if(existing && Object.keys(existing).length>0) return; // ya tiene pronósticos, nada que migrar
+    // Si no tiene, podría ser que sus pronósticos estén bajo un id viejo
+    // Los ids viejos empiezan con "p_" y tienen 9 chars (p_ + 7)
+    // Buscamos en el roster si hay alguna entrada con nombre similar y id distinto
+    const roster=(await getJSON("roster",true))||[];
+    const myName=S.me.name.toLowerCase();
+    const oldEntry=roster.find(p=>
+      p.id!==targetId &&
+      p.name.toLowerCase()===myName &&
+      p.id.startsWith("p_")
+    );
+    if(oldEntry){
+      const oldPreds=await getJSON("preds_"+oldEntry.id,true);
+      if(oldPreds && Object.keys(oldPreds).length>0){
+        await setJSON("preds_"+targetId, oldPreds, true);
+        Logger && Logger.log && Logger.log("Migrados pronósticos de "+oldEntry.id+" a "+targetId);
+      }
+    }
+  }catch(e){ console.error("Error migrando pronósticos:",e); }
+}
+
+
+/* ----------------------------------------------------------------
+   showPinReset — para el organizador: resetear el PIN de un jugador.
+   Agregar al final del bloque de renderResultados, en el HTML del
+   formulario de agregar partido, como una sección extra.
+   ---------------------------------------------------------------- */
+async function showPinReset(){
+  const roster=(await getJSON("roster",true))||[];
+  const old=document.getElementById("ovl"); if(old) old.remove();
+  const ov=document.createElement("div"); ov.className="overlay"; ov.id="ovl";
+  ov.innerHTML=`<div class="card">
+    <div class="kicker" style="color:var(--gold)">Modo Organizador</div>
+    <h2>Resetear PIN</h2>
+    <p style="color:var(--muted);font-size:13px;margin:0 0 14px">Selecciona el jugador cuyo PIN quieres resetear. La próxima vez que entre, podrá crear un PIN nuevo.</p>
+    <div style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto;margin-bottom:16px">
+      ${roster.map(p=>`
+        <button class="pr-row" data-id="${p.id}" style="display:flex;align-items:center;gap:12px;background:var(--panel2);border:1px solid var(--faint);border-radius:12px;padding:11px 14px;cursor:pointer;color:var(--line);font:inherit;text-align:left">
+          <span style="font-size:20px">${p.ico||"⚽"}</span>
+          <span style="font-weight:700;flex:1">${escapeHtml(p.name)}</span>
+          <span style="color:var(--flare);font-size:12px">Resetear →</span>
+        </button>`).join("")}
+    </div>
+    <button class="btn ghost" id="cancelPR">Cancelar</button>
+  </div>`;
+  document.body.appendChild(ov);
+  document.getElementById("cancelPR").onclick=()=>ov.remove();
+  ov.querySelectorAll(".pr-row").forEach(btn=>{
+    btn.onclick=async()=>{
+      const pl=roster.find(p=>p.id===btn.dataset.id);
+      if(!pl) return;
+      // Borra el hash del PIN — la próxima vez que entre, se le pide crear uno nuevo
+      await setJSON("pin_"+pl.id, null, true);
+      ov.remove();
+      toast(`PIN de ${pl.name} reseteado. La próxima vez que entre podrá crear uno nuevo.`,false,5000);
+    };
+  });
 }
 
 /* ---------- Live tick ---------- */
