@@ -680,18 +680,6 @@ async function addCustomMatch(){
      - _hashPin, _verifyPin, showPinReset (nuevas, agregar al final del <script>)
    ================================================================ */
 
-
-/* ----------------------------------------------------------------
-   HASH simple del PIN (no es criptografía real, es ofuscación
-   suficiente para una polla familiar sin datos sensibles).
-   ---------------------------------------------------------------- */
-function _hashPin(pin){
-  let h=0;
-  for(let i=0;i<pin.length;i++){ h=((h<<5)-h)+pin.charCodeAt(i); h|=0; }
-  return "ph_"+Math.abs(h).toString(36);
-}
-
-
 /* ----------------------------------------------------------------
    showOnboarding — nueva versión con lista de jugadores + PIN
    ---------------------------------------------------------------- */
@@ -856,15 +844,8 @@ async function showOnboarding(isChange){
       await setJSON("pin_"+player.id,_hashPin(pin),true);
       toast(`¡Hola ${player.name}! PIN creado. Recuérdalo.`,false,5000);
     }
-    // Migración automática: buscar pronósticos bajo ids viejos (p_ + 7 chars)
-    await _migrarPronosticos(player.id);
-    S.predsMe=(await getJSON("preds_"+player.id,true))||{};
-    await joinRoster();
-    ov.remove(); renderShell(); renderView();
-    if(!isFirstTime) toast(`¡Bienvenido de vuelta, ${player.name}!`,false,3000);
-  }
-
-  // Si isChange (cambiar nombre/emoji desde el header), va directo a su pantalla
+   
+    // Si isChange (cambiar nombre/emoji desde el header), va directo a su pantalla
   if(isChange && S.me){
     const player=roster.find(p=>p.id===S.me.id);
     if(player){ renderPinScreen(player); return; }
@@ -918,42 +899,7 @@ async function _migrarPronosticos(targetId){
 }
 
 
-/* ----------------------------------------------------------------
-   showPinReset — para el organizador: resetear el PIN de un jugador.
-   Agregar al final del bloque de renderResultados, en el HTML del
-   formulario de agregar partido, como una sección extra.
-   ---------------------------------------------------------------- */
-async function showPinReset(){
-  const roster=(await getJSON("roster",true))||[];
-  const old=document.getElementById("ovl"); if(old) old.remove();
-  const ov=document.createElement("div"); ov.className="overlay"; ov.id="ovl";
-  ov.innerHTML=`<div class="card">
-    <div class="kicker" style="color:var(--gold)">Modo Organizador</div>
-    <h2>Resetear PIN</h2>
-    <p style="color:var(--muted);font-size:13px;margin:0 0 14px">Selecciona el jugador cuyo PIN quieres resetear. La próxima vez que entre, podrá crear un PIN nuevo.</p>
-    <div style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto;margin-bottom:16px">
-      ${roster.map(p=>`
-        <button class="pr-row" data-id="${p.id}" style="display:flex;align-items:center;gap:12px;background:var(--panel2);border:1px solid var(--faint);border-radius:12px;padding:11px 14px;cursor:pointer;color:var(--line);font:inherit;text-align:left">
-          <span style="font-size:20px">${p.ico||"⚽"}</span>
-          <span style="font-weight:700;flex:1">${escapeHtml(p.name)}</span>
-          <span style="color:var(--flare);font-size:12px">Resetear →</span>
-        </button>`).join("")}
-    </div>
-    <button class="btn ghost" id="cancelPR">Cancelar</button>
-  </div>`;
-  document.body.appendChild(ov);
-  document.getElementById("cancelPR").onclick=()=>ov.remove();
-  ov.querySelectorAll(".pr-row").forEach(btn=>{
-    btn.onclick=async()=>{
-      const pl=roster.find(p=>p.id===btn.dataset.id);
-      if(!pl) return;
-      // Borra el hash del PIN — la próxima vez que entre, se le pide crear uno nuevo
-      await setJSON("pin_"+pl.id, null, true);
-      ov.remove();
-      toast(`PIN de ${pl.name} reseteado. La próxima vez que entre podrá crear uno nuevo.`,false,5000);
-    };
-  });
-}
+
 
 /* ---------- Live tick ---------- */
 function tick(){
@@ -1059,6 +1005,61 @@ function forzarSincronizacionAPI() {
       toast("Sincronizando la interfaz...");
       setTimeout(() => location.reload(), 800);
     });
+}
+  
+  /* ----------------------------------------------------------------
+   HASH simple del PIN (no es criptografía real, es ofuscación
+   suficiente para una polla familiar sin datos sensibles).
+   ---------------------------------------------------------------- */
+function _hashPin(pin){
+  let h=0;
+  for(let i=0;i<pin.length;i++){ h=((h<<5)-h)+pin.charCodeAt(i); h|=0; }
+  return "ph_"+Math.abs(h).toString(36);
+}
+  
+  // Migración automática: buscar pronósticos bajo ids viejos (p_ + 7 chars)
+    await _migrarPronosticos(player.id);
+    S.predsMe=(await getJSON("preds_"+player.id,true))||{};
+    await joinRoster();
+    ov.remove(); renderShell(); renderView();
+    if(!isFirstTime) toast(`¡Bienvenido de vuelta, ${player.name}!`,false,3000);
+  }
+
+/* ----------------------------------------------------------------
+   showPinReset — para el organizador: resetear el PIN de un jugador.
+   Agregar al final del bloque de renderResultados, en el HTML del
+   formulario de agregar partido, como una sección extra.
+   ---------------------------------------------------------------- */
+async function showPinReset(){
+  const roster=(await getJSON("roster",true))||[];
+  const old=document.getElementById("ovl"); if(old) old.remove();
+  const ov=document.createElement("div"); ov.className="overlay"; ov.id="ovl";
+  ov.innerHTML=`<div class="card">
+    <div class="kicker" style="color:var(--gold)">Modo Organizador</div>
+    <h2>Resetear PIN</h2>
+    <p style="color:var(--muted);font-size:13px;margin:0 0 14px">Selecciona el jugador cuyo PIN quieres resetear. La próxima vez que entre, podrá crear un PIN nuevo.</p>
+    <div style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto;margin-bottom:16px">
+      ${roster.map(p=>`
+        <button class="pr-row" data-id="${p.id}" style="display:flex;align-items:center;gap:12px;background:var(--panel2);border:1px solid var(--faint);border-radius:12px;padding:11px 14px;cursor:pointer;color:var(--line);font:inherit;text-align:left">
+          <span style="font-size:20px">${p.ico||"⚽"}</span>
+          <span style="font-weight:700;flex:1">${escapeHtml(p.name)}</span>
+          <span style="color:var(--flare);font-size:12px">Resetear →</span>
+        </button>`).join("")}
+    </div>
+    <button class="btn ghost" id="cancelPR">Cancelar</button>
+  </div>`;
+  document.body.appendChild(ov);
+  document.getElementById("cancelPR").onclick=()=>ov.remove();
+  ov.querySelectorAll(".pr-row").forEach(btn=>{
+    btn.onclick=async()=>{
+      const pl=roster.find(p=>p.id===btn.dataset.id);
+      if(!pl) return;
+      // Borra el hash del PIN — la próxima vez que entre, se le pide crear uno nuevo
+      await setJSON("pin_"+pl.id, null, true);
+      ov.remove();
+      toast(`PIN de ${pl.name} reseteado. La próxima vez que entre podrá crear uno nuevo.`,false,5000);
+    };
+  });
 }
   
 </script>
