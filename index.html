@@ -240,7 +240,27 @@ function renderShell(){
     </div>
     <div id="content"></div>`;
   document.getElementById("changeName").onclick=()=>showOnboarding(true);
-  document.getElementById("orgBtn").onclick=async()=>{S.organizer=!S.organizer;await setJSON("organizer",S.organizer,false);renderShell();renderView();};
+  document.getElementById("orgBtn").onclick=async()=>{
+  if(S.organizer){
+    // Si ya es organizador, desactivar directo
+    S.organizer=false;
+    await setJSON("organizer",false,false);
+    renderShell();renderView();
+  } else {
+    // Pedir PIN de administrador
+    const PIN_ADMIN="2026"; // ← cambia esto por el PIN que quieras
+    const ingresado=prompt("🔑 PIN de administrador:");
+    if(ingresado===null) return; // canceló
+    if(ingresado.trim()===PIN_ADMIN){
+      S.organizer=true;
+      await setJSON("organizer",true,false);
+      renderShell();renderView();
+      toast("Modo organizador activado ✓",false,3000);
+    } else {
+      toast("PIN incorrecto.",true,3000);
+    }
+  }
+};
   document.getElementById("tabs").querySelectorAll(".tab").forEach(t=>{t.onclick=()=>{S.view=t.dataset.v;renderView();};});
   const rt=document.querySelector('[data-v="resultados"]');if(rt)rt.style.display=S.organizer?"":"none";
 }
