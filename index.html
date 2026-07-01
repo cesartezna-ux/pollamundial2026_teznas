@@ -36,6 +36,14 @@
   .tabs{display:flex;gap:6px;position:static;z-index:20;padding:10px 0;background:var(--pitch)}
   .tab{flex:1;text-align:center;padding:11px 8px;border-radius:12px;cursor:pointer;background:var(--panel);border:1px solid var(--faint);color:var(--muted);font-weight:600;font-size:13.5px;letter-spacing:.02em}
   .tab.active{background:var(--raise);color:var(--line);border-color:rgba(255,200,69,.4)}
+  .datesel{display:flex;align-items:center;gap:8px;margin:16px 0 4px}
+  .datechips{display:flex;gap:8px;overflow-x:auto;flex:1;padding:2px 1px;scrollbar-width:none;-ms-overflow-style:none}
+  .datechips::-webkit-scrollbar{display:none}
+  .datechip{flex:none;padding:9px 14px;border-radius:12px;background:var(--panel);border:1px solid var(--faint);color:var(--muted);font-weight:700;font-size:12.5px;white-space:nowrap;cursor:pointer;letter-spacing:.02em}
+  .datechip.active{background:var(--raise);color:var(--line);border-color:rgba(255,200,69,.5)}
+  .datechip.hoy{color:var(--gold)}
+  .dayarrow{flex:none;width:34px;height:34px;border-radius:10px;background:var(--panel);border:1px solid var(--faint);color:var(--line);font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+  .dayarrow:disabled{opacity:.28;cursor:default}
   .daygroup{margin-top:18px}
   .dayhead{display:flex;align-items:center;gap:12px;margin:6px 2px 12px}
   .dayhead .d{font-family:var(--display);font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:var(--line);white-space:nowrap}
@@ -177,7 +185,7 @@ async function fetchAllShared(){
 }
 
 /* --- State --- */
-const S={me:null,roster:[],results:{},custom:[],allPreds:{},predsMe:{},dirty:new Set(),view:"partidos",organizer:false,now:Date.now()};
+const S={me:null,roster:[],results:{},custom:[],allPreds:{},predsMe:{},dirty:new Set(),view:"partidos",organizer:false,now:Date.now(),selectedDay:null};
 const AVATARS=["⚽","🏆","🦁","🐯","🔥","⭐","🚀","🐉","🌶️","🎯","👑","🐺"];
 let pendingIco=AVATARS[0];
 
@@ -313,27 +321,69 @@ function matchCardHtml(m){
   </div>`;
 }
 
-function renderPartidos(c){
+function buildDayList(){
   const ms=allMatches();
-  let html="",lastDay=null;
+  const map=new Map();
   for(const m of ms){
     const dk=dayKey(m.kick);
-    if(dk!==lastDay){if(lastDay!==null)html+="</div>";html+=`<div class="daygroup"><div class="dayhead"><span class="d">${cap(FD.format(m.kick))}</span><span class="rule"></span></div>`;lastDay=dk;}
-    html+=matchCardHtml(m);
+    if(!map.has(dk))map.set(dk,{key:dk,label:cap(FD.format(m.kick)),matches:[]});
+    map.get(dk).matches.push(m);
   }
-  if(lastDay!==null)html+="</div>";
+  return[...map.values()];
+}
+function defaultDay(days){
+  if(S.selectedDay&&days.some(d=>d.key===S.selectedDay))return S.selectedDay;
+  const now=S.now,todayKey=dayKey(now);
+  let d=days.find(d=>d.key===todayKey);
+  if(d)return d.key;
+  d=days.find(d=>d.matches.some(m=>m.kick>now));
+  if(d)return d.key;
+  return days.length?days[days.length-1].key:null;
+}
+
+function renderPartidos(c){
+  const days=buildDayList();
+  if(!days.length){c.innerHTML=`<div class="empty"><span class="big">⚽</span>Aún no hay partidos cargados.</div>`;return;}
+  const activeKey=defaultDay(days);
+  S.selectedDay=activeKey;
+  const activeIdx=days.findIndex(d=>d.key===activeKey);
+  const activeDay=days[activeIdx];
+  const todayKey=dayKey(S.now);
+
+  let chips="";
+  days.forEach((d,i)=>{
+    const isToday=d.key===todayKey;
+    chips+=`<div class="datechip ${i===activeIdx?"active":""} ${isToday?"hoy":""}" data-idx="${i}">${isToday?"Hoy · "+d.label:d.label}</div>`;
+  });
+
+  let html=`<div class="datesel">
+    <button class="dayarrow" id="prevDay" ${activeIdx<=0?"disabled":""}>‹</button>
+    <div class="datechips" id="datechips">${chips}</div>
+    <button class="dayarrow" id="nextDay" ${activeIdx>=days.length-1?"disabled":""}>›</button>
+  </div>`;
+  html+=`<div class="daygroup"><div class="dayhead"><span class="d">${activeDay.label}</span><span class="rule"></span></div>`;
+  for(const m of activeDay.matches)html+=matchCardHtml(m);
+  html+="</div>";
   html+=`<div class="rules"><div><b>Cómo se ganan los puntos</b></div>
     <div style="margin-top:8px"><span class="pill">+1</span> si aciertas quién gana (o el empate).</div>
     <div><span class="pill">+2</span> extra si además clavas el marcador exacto. <span style="color:var(--muted)">(máximo <b style="color:var(--gold)">3</b> por partido)</span></div>
     <div style="margin-top:8px">Cada partido se cierra a su hora de inicio.</div></div>`;
   c.innerHTML=html;
-  for(const m of ms){
+  for(const m of activeDay.matches){
     const hi=document.getElementById("h_"+m.id),ai=document.getElementById("a_"+m.id);
     matchEls[m.id]={hi,ai,cd:document.getElementById("cd_"+m.id),foot:document.getElementById("foot_"+m.id)};
     const onIn=()=>handleInput(m.id);
     if(hi)hi.oninput=onIn;if(ai)ai.oninput=onIn;
     paintFoot(m);
   }
+  document.getElementById("datechips").querySelectorAll(".datechip").forEach(ch=>{
+    ch.onclick=()=>{S.selectedDay=days[+ch.dataset.idx].key;renderView();};
+  });
+  const prevBtn=document.getElementById("prevDay"),nextBtn=document.getElementById("nextDay");
+  if(prevBtn)prevBtn.onclick=()=>{if(activeIdx>0){S.selectedDay=days[activeIdx-1].key;renderView();}};
+  if(nextBtn)nextBtn.onclick=()=>{if(activeIdx<days.length-1){S.selectedDay=days[activeIdx+1].key;renderView();}};
+  const activeChip=document.querySelector(".datechip.active");
+  if(activeChip)activeChip.scrollIntoView({behavior:"instant",inline:"center",block:"nearest"});
 }
 
 function clampVal(v){if(v==="")return"";let n=parseInt(v,10);if(isNaN(n))return"";if(n<0)n=0;if(n>49)n=49;return n;}
