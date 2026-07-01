@@ -625,8 +625,11 @@ async function showOnboarding(isChange){
 }
 
 async function joinRoster(){
-  await cloudCall({action:"joinRoster",player:S.me});
-  if(!S.roster.some(p=>p.id===S.me.id))S.roster.push(S.me);
+  await cloudCall({action:"joinRoster", player:S.me});
+  // Recargar el roster actualizado desde la nube
+  const fresh = await getJSON("roster", true);
+  if(fresh) S.roster = fresh;
+  else if(!S.roster.some(p=>p.id===S.me.id)) S.roster.push(S.me);
 }
 
 async function _migrarPronosticos(targetId){
@@ -726,7 +729,8 @@ window.addEventListener("focus",refreshShared);
     if(S.me){S.predsMe=(await getJSON("preds_"+S.me.id,true))||{};await joinRoster();}
     for(const pl of S.roster)S.allPreds[pl.id]=(await getJSON("preds_"+pl.id,true))||{};
     if(S.me)S.allPreds[S.me.id]=Object.assign({},S.predsMe);
-    renderShell();renderView();refreshShared();
+    await refreshShared();
+renderShell();renderView();
     if(!S.me)showOnboarding(false);
   }catch(e){console.error("Boot error:",e);renderShell();renderView();}
 })();
