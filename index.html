@@ -57,6 +57,7 @@
   .when .cd{display:block;font-family:var(--score);font-size:15px;letter-spacing:.03em;color:var(--mint);font-weight:600}
   .when .cd.soon{color:var(--flare)}
   .when .cd.closed{color:var(--muted)}
+  .when .loc{display:block;color:var(--mint);font-size:10.5px;margin-top:1px}
   .team{display:flex;align-items:center;gap:10px;padding:6px 0}
   .team .fl{font-size:22px;width:26px;text-align:center;flex:none;filter:saturate(1.1)}
   .team .nm{font-weight:600;font-size:15px;flex:1;min-width:0}
@@ -204,7 +205,20 @@ function ptsFor(p,r){
 const COLO=m=>m.home==="Colombia"||m.away==="Colombia";
 const FD=new Intl.DateTimeFormat("es-CO",{timeZone:"America/Bogota",weekday:"short",day:"numeric",month:"short"});
 const FT=new Intl.DateTimeFormat("es-CO",{timeZone:"America/Bogota",hour:"numeric",minute:"2-digit",hour12:true});
+const FTLocal=new Intl.DateTimeFormat(undefined,{hour:"numeric",minute:"2-digit",hour12:true});
+const FDLocal=new Intl.DateTimeFormat(undefined,{weekday:"short",day:"numeric",month:"short"});
+const ISOCol=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Bogota",year:"numeric",month:"2-digit",day:"2-digit"});
+const ISOLocal=new Intl.DateTimeFormat("en-CA",{year:"numeric",month:"2-digit",day:"2-digit"});
+const BOGOTA_OFFSET_MIN=300;
 function dayKey(ts){return FD.format(ts);}
+function whenHtml(kick){
+  const differs=new Date(kick).getTimezoneOffset()!==BOGOTA_OFFSET_MIN;
+  const main=`${cap(FD.format(kick))} · ${FT.format(kick)}${differs?" COL":""}`;
+  if(!differs)return main;
+  const sameDay=ISOCol.format(kick)===ISOLocal.format(kick);
+  const datePart=sameDay?"":cap(FDLocal.format(kick))+" · ";
+  return`${main}<span class="loc">${datePart}${FTLocal.format(kick)} tu hora</span>`;
+}
 function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
 function cd(diff){
   if(diff<=0)return null;
@@ -230,7 +244,7 @@ function renderShell(){
   root.innerHTML=`
     <div class="topfijo">
       <header>
-        <div class="kicker">Polla Mundialista · Familia Tezna · Hora de Colombia</div>
+        <div class="kicker">Polla Mundialista · Familia Tezna · Hora Colombia + tu hora</div>
         <h1>Polla Mundial <span class="yr">2026</span></h1>
         <div class="sub">Acierta el resultado y clava el marcador. Que gane el más mundialista de la casa.</div>
         <div class="whoami">
@@ -311,7 +325,7 @@ function matchCardHtml(m){
   return`<div class="match ${colo?"col":""}" id="card_${m.id}">
     <div class="mtop">
       <span class="grp ${colo?"colrib":""}">${colo?"¡Juega Colombia! 🇨🇴":"Grupo "+m.g}</span>
-      <span class="when">${cap(FD.format(m.kick))} · ${FT.format(m.kick)}<span class="cd" id="cd_${m.id}"></span></span>
+      <span class="when">${whenHtml(m.kick)}<span class="cd" id="cd_${m.id}"></span></span>
     </div>
     <div class="cols"><span class="sp"></span><span class="colh">Pron.</span><span class="colh">Real</span></div>
     <div class="team"><span class="fl">${flag(m.home)}</span><span class="nm ${homeWin?"win":""}">${escapeHtml(m.home)}</span>${predBox("h",ph)}<div class="box real">${rh}</div></div>
@@ -488,7 +502,7 @@ function renderResultados(c){
     const r=S.resWork[m.id]||{},locked=S.now>=m.kick;
     html+=`<div class="match" style="border-radius:14px">
       <div class="mtop"><span class="grp">${m.custom?"🏆 "+m.g:"Grupo "+m.g}</span>
-      <span class="when">${cap(FD.format(m.kick))} · ${FT.format(m.kick)} ${locked?"":"<span style='color:var(--flare)'>· aún no inicia</span>"}</span></div>
+      <span class="when">${whenHtml(m.kick)} ${locked?"":"<span style='color:var(--flare)'>· aún no inicia</span>"}</span></div>
       <div class="team"><span class="fl">${flag(m.home)}</span><span class="nm">${escapeHtml(m.home)}</span><input class="box" id="rh_${m.id}" type="number" inputmode="numeric" min="0" max="49" placeholder="–" value="${r.h!=null?r.h:""}"></div>
       <div class="divider"></div>
       <div class="team"><span class="fl">${flag(m.away)}</span><span class="nm">${escapeHtml(m.away)}</span><input class="box" id="ra_${m.id}" type="number" inputmode="numeric" min="0" max="49" placeholder="–" value="${r.a!=null?r.a:""}"></div>
